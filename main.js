@@ -10,14 +10,15 @@ function initThreeJS() {
     document.getElementById('scene-container').appendChild(renderer.domElement);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
     const pointLight = new THREE.PointLight(0xffffff, 1);
-    pointLight.position.set(5, 5, 5);
+    pointLight.position.set(2, 3, 4);
     scene.add(pointLight);
 
     // Camera and controls
-    camera.position.z = 3;
+    camera.position.set(2, 2, 2);
+    camera.lookAt(0, 0, 0);
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -25,11 +26,12 @@ function initThreeJS() {
     // Unit cell
     const cellGeometry = new THREE.BoxGeometry(1, 1, 1);
     const edges = new THREE.EdgesGeometry(cellGeometry);
-    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
+    const line = new THREE.LineSegments(edges, 
+        new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
     scene.add(line);
 
     // Axes helper
-    const axesHelper = new THREE.AxesHelper(1.5);
+    const axesHelper = new THREE.AxesHelper(2);
     scene.add(axesHelper);
 
     // Animation loop
@@ -41,29 +43,28 @@ function initThreeJS() {
     animate();
 
     // Window resize handler
-    window.addEventListener('resize', () => {
-        camera.aspect = (window.innerWidth/2) / (window.innerHeight * 0.7);
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth/2, window.innerHeight * 0.7);
-    });
+    window.addEventListener('resize', onWindowResize);
+}
+
+function onWindowResize() {
+    camera.aspect = (window.innerWidth/2) / (window.innerHeight * 0.7);
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth/2, window.innerHeight * 0.7);
 }
 
 function createMillerPlane(h, k, l) {
-    const planeGeometry = new THREE.PlaneGeometry(2, 2);
+    const normal = new THREE.Vector3(h, k, l).normalize();
+    const planeGeometry = new THREE.PlaneGeometry(3, 3);
     const planeMaterial = new THREE.MeshPhongMaterial({
-        color: 0x00ff88,
+        color: 0xFF5722,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.6
+        opacity: 0.7
     });
+    
     const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-
-    // Calculate orientation using cross product
-    const normal = new THREE.Vector3(h, k, l).normalize();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1), normal
-    );
-    plane.setRotationFromQuaternion(quaternion);
+    plane.lookAt(normal);
+    plane.position.copy(normal.multiplyScalar(0.5));
     
     scene.add(plane);
     return plane;
@@ -72,16 +73,13 @@ function createMillerPlane(h, k, l) {
 function generateSolution(h, k, l) {
     const steps = [];
     
-    // Step 1: Original intercepts
-    steps.push(`1. Determine intercepts: 
+    steps.push(`1. Intercepts: 
         $\\frac{1}{${h}}a, \\frac{1}{${k}}b, \\frac{1}{${l}}c$`);
 
-    // Step 2: Reciprocals
-    steps.push(`2. Take reciprocals: 
+    steps.push(`2. Reciprocals: 
         $\\left(${h}, ${k}, ${l}\\right)$`);
 
-    // Step 3: Clear denominators
-    steps.push(`3. Clear fractions: 
+    steps.push(`3. Miller Indices: 
         $\\boxed{(${h}${k}${l})}$`);
 
     return steps.map(step => `<div class="step">${step}</div>`).join('');
@@ -93,7 +91,7 @@ function handleGenerate() {
     const l = parseInt(document.getElementById('l').value) || 0;
     const errorDiv = document.getElementById('error');
     
-    // Clear previous
+    // Clear previous plane
     scene.children = scene.children.filter(obj => obj.type !== 'Mesh');
     errorDiv.style.display = 'none';
 
