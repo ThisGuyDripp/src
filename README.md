@@ -1,2 +1,2 @@
-mineraly project 
+mineralogy project 
 miller Indices calculator 
