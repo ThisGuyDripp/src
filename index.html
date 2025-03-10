@@ -3,29 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Miller Indices 3D Visualizer</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Miller Indices Calculator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="loading">Initializing 3D Engine...</div>
-    <div id="errorToast" class="error-toast"></div>
-    
-    <div class="control-panel">
-        <select id="mineralSelect" class="mineral-dropdown">
-            <option value="custom">Custom Values</option>
-        </select>
+    <div class="container">
+        <div class="control-panel">
+            <h1>Miller Indices Calculator</h1>
+            <div class="input-group">
+                <input type="number" id="h" placeholder="h" step="1" required>
+                <input type="number" id="k" placeholder="k" step="1" required>
+                <input type="number" id="l" placeholder="l" step="1" required>
+                <button onclick="handleGenerate()">Generate</button>
+            </div>
+            <div id="error" class="error-message"></div>
+        </div>
         
-        <div class="input-group">
-            <input type="number" id="h" class="miller-input" placeholder="h" min="0" step="1" value="1">
-            <input type="number" id="k" class="miller-input" placeholder="k" min="0" step="1" value="0">
-            <input type="number" id="l" class="miller-input" placeholder="l" min="0" step="1" value="0">
+        <div id="scene-container"></div>
+        
+        <div class="solution-section" id="solution">
+            <h2>Solution Steps</h2>
+            <div id="steps"></div>
         </div>
     </div>
 
-    <canvas id="sceneCanvas"></canvas>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js"></script>
-    <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
