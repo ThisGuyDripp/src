@@ -1,32 +1,42 @@
 :root {
-  --primary-color: #3a7ca5;    /* Steel blue */
-  --secondary-color: #2f5233;  /* Forest green */
+  --primary-color: #3a7ca5;
+  --secondary-color: #2f5233;
   --background-light: #f8f9fa;
   --background-dark: #1a1a1a;
   --text-light: #212529;
   --text-dark: #e9ecef;
+  
+  /* 3D Viewer Colors */
+  --crystal-color: #3a7ca5;
+  --bond-color: #2f5233;
+  --plane-color: rgba(255, 0, 0, 0.3);
+  --background-3d-light: linear-gradient(145deg, #e9ecef 0%, #dee2e6 100%);
+  --background-3d-dark: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%);
+}
+
+/* Dark Mode Overrides */
+.dark-mode {
+  --crystal-color: #6aa6cf;
+  --bond-color: #4f7452;
+  --plane-color: rgba(255, 102, 102, 0.3);
+  --background-light: var(--background-dark);
+  --text-light: var(--text-dark);
 }
 
 /* Base Styles */
 body {
   background-color: var(--background-light);
   color: var(--text-light);
-  transition: background 0.3s, color 0.3s;
-}
-
-body.dark-mode {
-  background-color: var(--background-dark);
-  color: var(--text-dark);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Calculator Card */
 .calculator.card {
   background: rgba(255, 255, 255, 0.95);
-  border: none;
   border-radius: 15px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
-  transition: transform 0.2s;
+  transition: transform 0.2s, background 0.3s;
 }
 
 .dark-mode .calculator.card {
@@ -34,93 +44,67 @@ body.dark-mode {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-.calculator.card:hover {
-  transform: translateY(-5px);
-}
-
 /* 3D Viewer Container */
 #3d-viewer {
-  height: 60vh;
-  border-radius: 12px;
-  overflow: hidden;
   position: relative;
-  background: linear-gradient(145deg, #e9ecef 0%, #dee2e6 100%);
+  width: 100%;
+  padding-top: 60%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--background-3d-light);
+  transition: background 0.3s;
+}
+
+#3d-viewer canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%!important;
+  height: 100%!important;
 }
 
 .dark-mode #3d-viewer {
-  background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%);
+  background: var(--background-3d-dark);
 }
 
-/* Buttons */
-.btn-outline-secondary {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+/* Miller Indices Display */
+.miller-display {
+  font-family: monospace;
+  letter-spacing: 0.2em;
+  margin: 0.5rem 0;
 }
 
-.btn-outline-secondary:hover {
-  background-color: var(--primary-color);
-  color: white;
+.index-box {
+  display: inline-block;
+  padding: 0.2em 0.4em;
+  margin: 0 0.1em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.05);
 }
 
-/* Tutorial Modals */
-.modal-content {
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+.dark-mode .index-box {
+  background: rgba(255, 255, 255, 0.05);
 }
 
-.dark-mode .modal-content {
-  background: rgba(30, 30, 30, 0.95);
-  color: var(--text-dark);
+.overline {
+  position: relative;
+  padding: 0 0.1em;
 }
 
-.modal-header {
-  border-bottom: 2px solid var(--primary-color);
+.overline::after {
+  content: "";
+  position: absolute;
+  left: -0.1em;
+  right: -0.1em;
+  top: -0.1em;
+  border-top: 2px solid currentColor;
 }
 
-/* Loading Spinner */
-.loader {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 9999;
-  display: none;
-}
-
-.loader.active {
-  display: block;
-}
-
-.spinner-border {
-  width: 3rem;
-  height: 3rem;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.calculator.card {
-  animation: fadeIn 0.6s ease-out;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-.btn-primary:hover {
-  animation: pulse 0.4s;
-}
-
-/* Mobile Optimization */
+/* Responsive Design */
 @media (max-width: 768px) {
   #3d-viewer {
-    height: 50vh;
+    padding-top: 80%;
   }
 
   .calculator.card {
@@ -133,10 +117,42 @@ body.dark-mode {
   }
 }
 
-/* Dark Mode Toggle (Add to HTML) */
-.dark-mode-toggle {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
+/* Accessibility Enhancements */
+.form-control:focus,
+.btn:focus {
+  box-shadow: 0 0 0 0.25rem rgba(58, 124, 165, 0.25);
+}
+
+.dark-mode .form-control:focus,
+.dark-mode .btn:focus {
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.25);
+}
+
+/* Loading States */
+.viewer-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+/* Animation Enhancements */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.calculator.card {
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes planeHighlight {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+  100% { opacity: 0.3; }
+}
+
+.plane-highlight {
+  animation: planeHighlight 2s ease-in-out infinite;
 }
