@@ -1,0 +1,103 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#sceneCanvas {
+    width: 100vw;
+    height: 100vh;
+    background: #1a1a1a;
+}
+
+.control-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    max-width: 320px;
+}
+
+.input-group {
+    margin: 15px 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.mineral-dropdown {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #007bff;
+    border-radius: 8px;
+    background: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.miller-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+    background: #fff;
+    transition: all 0.3s ease;
+}
+
+.miller-input:focus {
+    outline: none;
+    border-color: #218838;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+}
+
+.error-toast {
+    position: fixed;
+    top: 20px;
+    right: -300px;
+    background: #dc3545;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    transition: right 0.3s ease;
+    z-index: 1000;
+    font-weight: 500;
+}
+
+#loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 1.5rem;
+    z-index: 1000;
+}
+
+@media (max-width: 600px) {
+    .control-panel {
+        width: 90%;
+        left: 5%;
+        padding: 15px;
+    }
+    
+    .input-group {
+        grid-template-columns: 1fr;
+    }
+    
+    .miller-input {
+        width: 100%;
+    }
+}
