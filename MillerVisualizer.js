@@ -2,7 +2,15 @@
 
 class MillerVisualizer {
     constructor(containerId) {
+        if (!window.THREE) {
+            throw new Error('THREE.js not loaded');
+        }
+
         this.container = document.getElementById(containerId);
+        if (!this.container) {
+            throw new Error('Container not found: ' + containerId);
+        }
+
         this.config = window.CONFIG;
         
         // Core components
@@ -22,6 +30,7 @@ class MillerVisualizer {
         // Animation
         this.animationFrame = null;
 
+        // Initialize
         this.init();
     }
 
@@ -30,6 +39,7 @@ class MillerVisualizer {
      */
     init() {
         try {
+            console.log('Initializing visualizer...');
             this.setupScene();
             this.setupCamera();
             this.setupRenderer();
@@ -38,7 +48,9 @@ class MillerVisualizer {
             this.setupAxisSystem();
             this.setupEventListeners();
             this.animate();
+            console.log('Visualizer initialized successfully');
         } catch (error) {
+            console.error('Visualization initialization error:', error);
             window.CONFIG_UTILS.debug('Visualization initialization error: ' + error.message, 'error');
             throw error;
         }
@@ -63,9 +75,9 @@ class MillerVisualizer {
             this.config.SCENE.NEAR,
             this.config.SCENE.FAR
         );
-        this.camera.position.copy(new THREE.Vector3().fromArray(
-            Object.values(this.config.SCENE.CAMERA_POSITION)
-        ));
+        
+        const pos = this.config.SCENE.CAMERA_POSITION;
+        this.camera.position.set(pos.x, pos.y, pos.z);
         this.camera.lookAt(0, 0, 0);
     }
 
@@ -74,10 +86,20 @@ class MillerVisualizer {
      */
     setupRenderer() {
         this.renderer = new THREE.WebGLRenderer({
-            antialias: this.config.PERFORMANCE.antialiasing
+            antialias: this.config.PERFORMANCE.antialiasing,
+            alpha: true
         });
-        this.renderer.setPixelRatio(this.config.PERFORMANCE.pixelRatio);
-        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        
+        this.renderer.setPixelRatio(Math.min(
+            window.devicePixelRatio,
+            this.config.PERFORMANCE.maxPixelRatio || 2
+        ));
+        
+        this.renderer.setSize(
+            this.container.clientWidth,
+            this.container.clientHeight
+        );
+        
         this.container.appendChild(this.renderer.domElement);
     }
 
@@ -97,9 +119,8 @@ class MillerVisualizer {
             this.config.SCENE.LIGHTING.point.color,
             this.config.SCENE.LIGHTING.point.intensity
         );
-        pointLight.position.copy(new THREE.Vector3().fromArray(
-            Object.values(this.config.SCENE.LIGHTING.point.position)
-        ));
+        const pos = this.config.SCENE.LIGHTING.point.position;
+        pointLight.position.set(pos.x, pos.y, pos.z);
         this.scene.add(pointLight);
     }
 
@@ -107,8 +128,15 @@ class MillerVisualizer {
      * Set up orbit controls
      */
     setupControls() {
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        if (!window.OrbitControls) {
+            throw new Error('OrbitControls not loaded');
+        }
+
+        this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
+        
+        // Apply control settings from config
         Object.assign(this.controls, this.config.SCENE.CONTROLS);
+        
         this.controls.update();
     }
 
@@ -130,6 +158,8 @@ class MillerVisualizer {
      * Handle window resize
      */
     handleResize() {
+        if (!this.container || !this.camera || !this.renderer) return;
+
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
 
@@ -139,13 +169,20 @@ class MillerVisualizer {
     }
 
     /**
-     * Visualization animation loop
+     * Animation loop
      */
     animate() {
+        if (!this.renderer || !this.scene || !this.camera) return;
+
         this.animationFrame = requestAnimationFrame(this.animate.bind(this));
         
-        this.controls.update();
-        this.axisSystem.update(this.camera);
+        if (this.controls) {
+            this.controls.update();
+        }
+
+        if (this.axisSystem) {
+            this.axisSystem.update(this.camera);
+        }
         
         if (this.config.PERFORMANCE.autoRotate) {
             this.scene.rotation.y += 0.001;
@@ -159,6 +196,8 @@ class MillerVisualizer {
      */
     visualize(h, k, l) {
         try {
+            console.log('Visualizing indices:', h, k, l);
+            
             // Clear previous visualization
             this.clearPlane();
             
@@ -171,8 +210,10 @@ class MillerVisualizer {
             // Create intersection points
             this.createIntersectionPoints(result.intersections);
             
+            console.log('Visualization complete');
             return true;
         } catch (error) {
+            console.error('Visualization error:', error);
             window.CONFIG_UTILS.debug('Visualization error: ' + error.message, 'error');
             return false;
         }
@@ -229,15 +270,15 @@ class MillerVisualizer {
     clearPlane() {
         if (this.plane) {
             this.scene.remove(this.plane);
-            this.plane.geometry.dispose();
-            this.plane.material.dispose();
+            if (this.plane.geometry) this.plane.geometry.dispose();
+            if (this.plane.material) this.plane.material.dispose();
             this.plane = null;
         }
 
         this.intersectionPoints.forEach(point => {
             this.scene.remove(point);
-            point.geometry.dispose();
-            point.material.dispose();
+            if (point.geometry) point.geometry.dispose();
+            if (point.material) point.material.dispose();
         });
         this.intersectionPoints = [];
     }
@@ -246,11 +287,12 @@ class MillerVisualizer {
      * Reset camera position
      */
     resetCamera() {
-        this.camera.position.copy(new THREE.Vector3().fromArray(
-            Object.values(this.config.SCENE.CAMERA_POSITION)
-        ));
+        const pos = this.config.SCENE.CAMERA_POSITION;
+        this.camera.position.set(pos.x, pos.y, pos.z);
         this.camera.lookAt(0, 0, 0);
-        this.controls.reset();
+        if (this.controls) {
+            this.controls.reset();
+        }
     }
 
     /**
@@ -276,10 +318,16 @@ class MillerVisualizer {
         // Dispose of renderer
         if (this.renderer) {
             this.renderer.dispose();
-            this.container.removeChild(this.renderer.domElement);
+            if (this.container && this.renderer.domElement) {
+                this.container.removeChild(this.renderer.domElement);
+            }
         }
 
-        // Clear reference to container
+        // Clear references
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
         this.container = null;
     }
 }
