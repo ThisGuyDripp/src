@@ -17,7 +17,7 @@ class InterceptCalculator {
      */
     calculateIntercepts(params) {
         try {
-            const { system } = params;
+            const { system } = params; // system is correctly destructured here from input
             const cacheKey = this._getCacheKey(params);
             if (this._cache.has(cacheKey)) {
                 return this._cache.get(cacheKey);
@@ -48,18 +48,16 @@ class InterceptCalculator {
     // --- Cubic Calculations ---
 
     _calculateCubicIntercepts(params) {
-        const { h, k, l } = params;
+        const { h, k, l, system } = params; // Destructure system here as well
 
-        // Note: Mapping in AxisSystem is b->x, c->y, a->z
-        // So intercepts are calculated based on (h, k, l) corresponding to (x, y, z) axes
-        const interceptX = this._calculateSingleIntercept(h); // Intercept on b-axis (x)
-        const interceptY = this._calculateSingleIntercept(k); // Intercept on c-axis (y)
-        const interceptZ = this._calculateSingleIntercept(l); // Intercept on a-axis (z)
+        const interceptA = this._calculateSingleIntercept(h);
+        const interceptB = this._calculateSingleIntercept(k);
+        const interceptC = this._calculateSingleIntercept(l);
 
         const intersections = {
-            x: interceptX === Infinity ? null : new THREE.Vector3(interceptX, 0, 0),
-            y: interceptY === Infinity ? null : new THREE.Vector3(0, interceptY, 0),
-            z: interceptZ === Infinity ? null : new THREE.Vector3(0, 0, interceptZ)
+            x: interceptB === Infinity ? null : new THREE.Vector3(interceptB, 0, 0),
+            y: interceptC === Infinity ? null : new THREE.Vector3(0, interceptC, 0),
+            z: interceptA === Infinity ? null : new THREE.Vector3(0, 0, interceptA)
         };
 
         const normal = this._calculateCubicPlaneNormal(h, k, l);
@@ -71,19 +69,16 @@ class InterceptCalculator {
             normal,
             center,
             size,
-            parameters: { h, k, l },
-            intercepts: { x: interceptX, y: interceptY, z: interceptZ } // Store intercepts by axis name
+            parameters: { h, k, l, system: system }, // Ensure system is included
+            intercepts: { a: interceptA, b: interceptB, c: interceptC }
         };
     }
 
-     _calculateCubicPlaneNormal(h, k, l) {
-        // Normal vector corresponds directly to (h, k, l) in the (x, y, z) space
-        // given the axis setup (b->x, c->y, a->z)
-        const normal = new THREE.Vector3(h, k, l);
+     _calculateCubicPlaneNormal(h_for_a, k_for_b, l_for_c) {
+        const normal = new THREE.Vector3(k_for_b, l_for_c, h_for_a);
         if (normal.lengthSq() === 0) {
-            // This case should be caught by validateIndices, but safeguard here
             window.CONFIG_UTILS.debug('Cannot calculate normal for zero vector (cubic)', 'warn');
-            return new THREE.Vector3(0, 0, 1); // Default normal
+            return new THREE.Vector3(0, 0, 1);
         }
         return normal.normalize();
     }
@@ -92,215 +87,163 @@ class InterceptCalculator {
     // --- Hexagonal Calculations ---
 
     _calculateHexagonalIntercepts(params) {
-         const { h, k, i, l } = params; // i is available
+         const { h, k, i, l, system } = params; // Destructure system here as well
 
-         // Intercepts related to a1, a2, a3, c axes
          const interceptA1 = this._calculateSingleIntercept(h);
          const interceptA2 = this._calculateSingleIntercept(k);
          const interceptA3 = this._calculateSingleIntercept(i);
-         const interceptC = this._calculateSingleIntercept(l); // Intercept on c-axis (z)
+         const interceptC = this._calculateSingleIntercept(l);
 
-         // Calculate intersection points in 3D space (assuming standard hexagonal axis setup)
-         // a1 along +x
-         // a2 at 120 deg in xy plane
-         // a3 at 240 deg in xy plane (-120 deg)
-         // c along +z
          const intersections = {
              a1: interceptA1 === Infinity ? null : new THREE.Vector3(interceptA1, 0, 0),
-             a2: interceptA2 === Infinity ? null : new THREE.Vector3(interceptA2 * -0.5, interceptA2 * this.SQRT3 / 2, 0), // cos(120), sin(120)
-             a3: interceptA3 === Infinity ? null : new THREE.Vector3(interceptA3 * -0.5, interceptA3 * -this.SQRT3 / 2, 0), // cos(240), sin(240)
+             a2: interceptA2 === Infinity ? null : new THREE.Vector3(interceptA2 * -0.5, interceptA2 * this.SQRT3 / 2, 0),
+             a3: interceptA3 === Infinity ? null : new THREE.Vector3(interceptA3 * -0.5, interceptA3 * -this.SQRT3 / 2, 0),
              c: interceptC === Infinity ? null : new THREE.Vector3(0, 0, interceptC)
          };
 
-         const normal = this._calculateHexagonalPlaneNormal(h, k, l); // Use h, k, l for normal
+         const normal = this._calculateHexagonalPlaneNormal(h, k, l);
          const center = this._calculatePlaneCenter(Object.values(intersections));
          const size = this._calculatePlaneSize(Object.values(intersections));
 
          return {
-            intersections, // Contains points for a1, a2, a3, c
+            intersections,
             normal,
             center,
             size,
-            parameters: { h, k, i, l },
-            // Store intercepts by axis name (a1, a2, a3, c)
+            parameters: { h, k, i, l, system: system }, // Ensure system is included
             intercepts: { a1: interceptA1, a2: interceptA2, a3: interceptA3, c: interceptC }
          };
     }
 
      _calculateHexagonalPlaneNormal(h, k, l) {
-         // Normal calculation based on reciprocal lattice vectors.
-         // N proportional to h*b1 + k*b2 + l*b3
-         // In Cartesian coordinates (a1 along x, c along z):
-         // Nx ~ h - k/2
-         // Ny ~ k * sqrt(3)/2
-         // Nz ~ l * (some factor depending on c/a ratio)
-         // For visualization without specific c/a, we can use a simplified normal.
-         // Let's assume a geometric normal suitable for visualization, potentially
-         // omitting the c/a scaling factor for Nz initially.
-         // Ref: https://math.stackexchange.com/questions/117969/finding-the-normal-vector-to-a-plane-given-by-miller-indices-for-a-hexagonal-sy
-
          const nx = h - k / 2;
          const ny = k * this.SQRT3 / 2;
-         const nz = l; // Simplified: Assumes effective c/a ratio leads to this form for normal direction.
-                      // For accurate crystallography, nz should be proportional to l * (a/c)^2 * (3/2) or similar.
-
+         const nz = l;
          const normal = new THREE.Vector3(nx, ny, nz);
          if (normal.lengthSq() < 1e-10) {
-             // Handle cases like (000l) which should be normal to z-axis
              if (h === 0 && k === 0 && l !== 0) return new THREE.Vector3(0, 0, Math.sign(l));
-             // Other zero cases should be caught by validation
              window.CONFIG_UTILS.debug('Cannot calculate normal for zero vector (hexagonal)', 'warn');
-             return new THREE.Vector3(0, 0, 1); // Default fallback
+             return new THREE.Vector3(0, 0, 1);
          }
          return normal.normalize();
      }
 
 
     // --- Common Helper Methods ---
-
-    /**
-     * Calculate single intercept value (reciprocal)
-     * @private
-     */
     _calculateSingleIntercept(index) {
-        // Ensure index is treated as a number
         const numIndex = Number(index);
         if (!Number.isFinite(numIndex) || Math.abs(numIndex) < 1e-10) {
-             return Infinity; // Handle 0, NaN, non-finite numbers
+             return Infinity;
         }
         return 1 / numIndex;
     }
 
-    /**
-     * Calculate plane center point from valid intersection points
-     * @private
-     */
     _calculatePlaneCenter(intersectionPointsList) {
         const validPoints = intersectionPointsList.filter(p => p instanceof THREE.Vector3);
         if (validPoints.length === 0) {
-            // Should not happen if validation passes, but good safeguard
             window.CONFIG_UTILS.debug('No valid intersection points for center calculation', 'warn');
-            return new THREE.Vector3(0, 0, 0); // Default center
+            return new THREE.Vector3(0, 0, 0);
         }
-
         const center = new THREE.Vector3();
         validPoints.forEach(point => center.add(point));
         center.divideScalar(validPoints.length);
-
-        // If center is extremely close to origin, snap it to origin
         if (center.lengthSq() < 1e-10) {
             return new THREE.Vector3(0, 0, 0);
         }
         return center;
     }
 
-    /**
-     * Calculate appropriate plane size based on bounding box of valid intersection points
-     * @private
-     */
     _calculatePlaneSize(intersectionPointsList) {
         const validPoints = intersectionPointsList.filter(p => p instanceof THREE.Vector3);
-        if (validPoints.length <= 1) { // Need at least 2 points to define a size
-            // If only one intersection point (e.g., (100)), size needs context.
-            // If zero points (plane through origin like (000)?), also need context.
-             // Fallback to default size for now.
-             return this.config.PLANE.DEFAULT_SIZE * 1.5; // Use a slightly larger default
+        if (validPoints.length <= 1) {
+             return this.config.PLANE.DEFAULT_SIZE * 1.5;
         }
-
         this._boundingBox.makeEmpty();
-        // Include origin to ensure plane size is reasonable if points are close to origin
         this._boundingBox.expandByPoint(new THREE.Vector3(0, 0, 0));
         validPoints.forEach(point => this._boundingBox.expandByPoint(point));
-
         const sizeVec = new THREE.Vector3();
         this._boundingBox.getSize(sizeVec);
-
-        // Use the diagonal of the bounding box projected onto the plane,
-        // or simply use the max dimension as a heuristic. Max dimension is simpler.
         const maxDimension = Math.max(sizeVec.x, sizeVec.y, sizeVec.z);
-
-        // Ensure a minimum size and apply a scaling factor
-        const calculatedSize = Math.max(maxDimension, 0.5) * 1.5; // Added minimum dimension check
-
-        // Clamp to configured max size if needed
+        const calculatedSize = Math.max(maxDimension, 0.5) * 1.5;
         return Math.min(calculatedSize, this.config.PLANE.MAX_SIZE);
     }
 
-
     // --- Validation ---
-
-    /**
-     * Validate Miller indices based on crystal system
-     * @param {Object} params - Calculation parameters
-     * @returns {boolean}
-     */
     validateIndices(params) {
         const { system } = params;
         try {
             if (system === 'cubic') {
                 const { h, k, l } = params;
-                const indices = [h, k, l];
+                const indices = [h, k, l].map(Number); // Convert to number for validation
                 if (indices.every(val => val === 0)) throw new Error('All indices cannot be zero');
                 if (indices.some(val => !Number.isInteger(val))) throw new Error('Cubic indices must be integers');
-                if (indices.some(val => !Number.isFinite(val))) throw new Error('Invalid index value (NaN or Infinity)');
-                // Add range checks if needed from config (currently done in UI validation)
-
+                if (indices.some(val => !Number.isFinite(val))) throw new Error('Invalid cubic index value (NaN or Infinity)');
             } else if (system === 'hexagonal') {
                 const { h, k, i, l } = params;
-                const indices = [h, k, i, l];
-                 if (indices.every(val => val === 0)) throw new Error('All indices cannot be zero');
-                if (indices.some(val => !Number.isInteger(val))) throw new Error('Hexagonal indices must be integers');
-                if (indices.some(val => !Number.isFinite(val))) throw new Error('Invalid index value (NaN or Infinity)');
-                if (h + k + i !== 0) throw new Error('Hexagonal indices must satisfy h + k + i = 0');
-                 // Add range checks if needed
+                const hkil_indices = [h, k, i, l].map(Number); // Convert to number
+                const hki_indices = [h, k, i].map(Number);
 
+                if (hkil_indices.every(val => val === 0)) throw new Error('All indices cannot be zero');
+                if (hkil_indices.some(val => !Number.isInteger(val))) throw new Error('Hexagonal indices must be integers');
+                if (hkil_indices.some(val => !Number.isFinite(val))) throw new Error('Invalid hexagonal index value (NaN or Infinity)');
+                if (hki_indices.reduce((sum, val) => sum + val, 0) !== 0) { // Sum of h, k, i must be 0
+                    throw new Error('Hexagonal indices must satisfy h + k + i = 0.');
+                }
             } else {
                 throw new Error(`Unsupported crystal system for validation: ${system}`);
             }
             return true;
         } catch (error) {
             window.CONFIG_UTILS.debug(`Index validation error: ${error.message}`, 'error');
-            // Optionally, re-throw or return false depending on desired handling in caller
-            // Rethrowing seems appropriate here so calculateIntercepts catches it.
             throw error;
         }
     }
 
-
     // --- Solution Steps ---
-
-    /**
-     * Get solution steps with KaTeX formatting based on system
-     * @param {Object} params - Calculation parameters
-     * @returns {Array} Steps array
-     */
-    getSolutionSteps(params) {
-        const { system } = params;
+    getSolutionSteps(params_input) { // Renamed to avoid conflict with internal 'params'
+        const { system } = params_input;
         try {
-             // Recalculate results to ensure consistency, or get from cache if needed
-             // For simplicity, recalculate intercepts here based on params
-             let interceptsData;
              let indicesDisplay;
              let interceptFormula;
+             let calculatedInterceptsData = {};
+
+             // Use the input params for display and initial calculation values
+             const h_in = params_input.h;
+             const k_in = params_input.k;
+             const l_in = params_input.l;
+             const i_in = params_input.i; // Will be undefined for cubic
 
              if (system === 'cubic') {
-                 const { h, k, l } = params;
-                 const interceptX = this._calculateSingleIntercept(h);
-                 const interceptY = this._calculateSingleIntercept(k);
-                 const interceptZ = this._calculateSingleIntercept(l);
-                 interceptsData = { x: interceptX, y: interceptY, z: interceptZ };
-                 indicesDisplay = `(${h}, ${k}, ${l})`;
-                 // Using axis names b, c, a as per AxisSystem
-                 interceptFormula = `\\text{Intercepts: } \\frac{1}{${h}} \\text{ on b (x)}, \\quad \\frac{1}{${k}} \\text{ on c (y)}, \\quad \\frac{1}{${l}} \\text{ on a (z)}`;
+                 const interceptA_val = this._calculateSingleIntercept(h_in);
+                 const interceptB_val = this._calculateSingleIntercept(k_in);
+                 const interceptC_val = this._calculateSingleIntercept(l_in);
+                 indicesDisplay = `(${h_in}, ${k_in}, ${l_in})`;
+                 interceptFormula = `\\text{Intercepts (Weiss Parameters): } \\\\
+                                     \\text{On a-axis (visual Z, Miller h): } \\frac{1}{${h_in}} = ${UTILS.formatValue(interceptA_val)} \\\\
+                                     \\text{On b-axis (visual X, Miller k): } \\frac{1}{${k_in}} = ${UTILS.formatValue(interceptB_val)} \\\\
+                                     \\text{On c-axis (visual Y, Miller l): } \\frac{1}{${l_in}} = ${UTILS.formatValue(interceptC_val)}`;
+                calculatedInterceptsData = {
+                    'Intercept on a-axis (visual Z, Miller h)': UTILS.formatValue(interceptA_val),
+                    'Intercept on b-axis (visual X, Miller k)': UTILS.formatValue(interceptB_val),
+                    'Intercept on c-axis (visual Y, Miller l)': UTILS.formatValue(interceptC_val)
+                };
              } else if (system === 'hexagonal') {
-                 const { h, k, i, l } = params;
-                 const interceptA1 = this._calculateSingleIntercept(h);
-                 const interceptA2 = this._calculateSingleIntercept(k);
-                 const interceptA3 = this._calculateSingleIntercept(i);
-                 const interceptC = this._calculateSingleIntercept(l);
-                 interceptsData = { a1: interceptA1, a2: interceptA2, a3: interceptA3, c: interceptC };
-                 indicesDisplay = `(${h}, ${k}, ${i}, ${l})`;
-                 interceptFormula = `\\text{Intercepts: } \\frac{1}{${h}} \\text{ on } a_1, \\quad \\frac{1}{${k}} \\text{ on } a_2, \\quad \\frac{1}{${i}} \\text{ on } a_3, \\quad \\frac{1}{${l}} \\text{ on } c`;
+                 const interceptA1_val = this._calculateSingleIntercept(h_in);
+                 const interceptA2_val = this._calculateSingleIntercept(k_in);
+                 const interceptA3_val = this._calculateSingleIntercept(i_in);
+                 const interceptC_val = this._calculateSingleIntercept(l_in);
+                 indicesDisplay = `(${h_in}, ${k_in}, ${i_in}, ${l_in})`;
+                 interceptFormula = `\\text{Intercepts (Weiss Parameters): } \\\\
+                                     \\text{On } a_1\\text{-axis (Miller h): } \\frac{1}{${h_in}} = ${UTILS.formatValue(interceptA1_val)} \\\\
+                                     \\text{On } a_2\\text{-axis (Miller k): } \\frac{1}{${k_in}} = ${UTILS.formatValue(interceptA2_val)} \\\\
+                                     \\text{On } a_3\\text{-axis (Miller i): } \\frac{1}{${i_in}} = ${UTILS.formatValue(interceptA3_val)} \\\\
+                                     \\text{On c-axis (Miller l): } \\frac{1}{${l_in}} = ${UTILS.formatValue(interceptC_val)}`;
+                calculatedInterceptsData = {
+                    'Intercept on a1-axis (Miller h)': UTILS.formatValue(interceptA1_val),
+                    'Intercept on a2-axis (Miller k)': UTILS.formatValue(interceptA2_val),
+                    'Intercept on a3-axis (Miller i)': UTILS.formatValue(interceptA3_val),
+                    'Intercept on c-axis (Miller l)': UTILS.formatValue(interceptC_val)
+                };
              } else {
                  return [{ step: 1, description: 'Unsupported system', math: '', values: {} }];
              }
@@ -308,40 +251,28 @@ class InterceptCalculator {
             return [
                 {
                     step: 1,
-                    description: `Miller indices (${system})`,
-                    math: `\\text{Indices: } ${indicesDisplay}`,
-                    values: params // Show input params
+                    description: `Miller Indices (${system === 'hexagonal' ? 'Miller-Bravais' : 'Miller'}) input:`,
+                    math: `(${system === 'hexagonal' ? 'hkil' : 'hkl'}) = ${indicesDisplay}`,
+                    values: params_input // Show original input params
                 },
                 {
                     step: 2,
-                    description: 'Calculate axis intercepts (reciprocals)',
+                    description: 'Calculate axis intercepts (reciprocals of Miller indices define the Weiss Parameters):',
                     math: interceptFormula,
-                    values: interceptsData // Show calculated intercepts
+                    values: calculatedInterceptsData
                 }
-                 // Add more steps if needed (e.g., plane normal calculation)
             ];
         } catch (error) {
             window.CONFIG_UTILS.debug(`Solution steps generation error: ${error.message}`, 'error');
-            // Return error step or throw
-            return [{ step: 1, description: 'Error generating steps', math: error.message, values: {} }];
+            return [{ step: 1, description: 'Error generating solution steps', math: error.message, values: {} }];
         }
     }
 
-
     // --- Cache Management ---
-
-    /**
-     * Clear calculation cache
-     */
     clearCache() {
         this._cache.clear();
         window.CONFIG_UTILS.debug('Intercept calculator cache cleared', 'info');
     }
-
-    /**
-     * Get cache key for given parameters
-     * @private
-     */
     _getCacheKey(params) {
          const { system } = params;
          if (system === 'cubic') {
@@ -349,9 +280,8 @@ class InterceptCalculator {
          } else if (system === 'hexagonal') {
              return `hex-${params.h},${params.k},${params.i},${params.l}`;
          }
-         return `unknown-${JSON.stringify(params)}`; // Fallback
+         return `unknown-${JSON.stringify(params)}`;
     }
 }
 
-// Make calculator available globally
 window.InterceptCalculator = InterceptCalculator;

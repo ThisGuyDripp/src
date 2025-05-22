@@ -3,378 +3,364 @@
 class MillerVisualizer {
     constructor(containerId) {
         if (!window.THREE || !window.CONFIG || !window.InterceptCalculator || !window.AxisSystem) {
-            throw new Error('MillerVisualizer: Missing required dependencies.');
+            throw new Error('MillerVisualizer: Missing required dependencies (THREE, CONFIG, InterceptCalculator, AxisSystem).');
         }
-
         this.container = document.getElementById(containerId);
         if (!this.container) {
-            throw new Error('Container not found: ' + containerId);
+            throw new Error('MillerVisualizer: Container not found: ' + containerId);
         }
-
         this.config = window.CONFIG;
-
-        // Core components
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.controls = null;
-
-        // System components
-        this.axisSystem = null; // Will be initialized in init()
+        this.axisSystem = null;
         this.calculator = new window.InterceptCalculator();
-
-        // Visualization elements
-        this.plane = null;
-        this.intersectionPointMeshes = []; // Renamed for clarity
-
-        // Animation
+        this.planeMesh = null;
+        this.intersectionPointMeshes = [];
         this.animationFrame = null;
-
-        // Initialize
         this.init();
     }
 
-    /**
-     * Initialize the visualization system
-     */
     init() {
         try {
-            window.CONFIG_UTILS.debug('Initializing visualizer...', 'info');
+            window.CONFIG_UTILS.debug('MillerVisualizer: Initializing...', 'info');
             this.setupScene();
             this.setupCamera();
             this.setupRenderer();
             this.setupLighting();
             this.setupControls();
-
-            // Initialize AxisSystem with default (cubic)
-            // Assuming the UI defaults to cubic
             this.axisSystem = new window.AxisSystem(this.scene, 'cubic');
-
             this.setupEventListeners();
             this.animate();
-            window.CONFIG_UTILS.debug('Visualizer initialized successfully', 'info');
+            window.CONFIG_UTILS.debug('MillerVisualizer: Initialized successfully.', 'info');
         } catch (error) {
-            console.error('Visualization initialization error:', error);
-            window.CONFIG_UTILS.debug('Visualization initialization error: ' + error.message, 'error');
-            // Clean up partially initialized state if necessary
+            console.error('MillerVisualizer: Initialization error:', error);
+            window.CONFIG_UTILS.debug('MillerVisualizer: Initialization error - ' + error.message, 'error');
             this.dispose();
-            throw error; // Re-throw for the App level
+            throw error;
         }
     }
 
-    /**
-     * Set up the Three.js scene
-     */
-    setupScene() {
+    setupScene() { /* ... same as before ... */
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(this.config.SCENE.BACKGROUND_COLOR);
     }
-
-    /**
-     * Set up the camera
-     */
-    setupCamera() {
+    setupCamera() { /* ... same as before ... */
         const aspect = this.container.clientWidth / this.container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(
             this.config.SCENE.FOV, aspect, this.config.SCENE.NEAR, this.config.SCENE.FAR
         );
-        this.resetCameraPosition(); // Use a method to set initial position
+        this.resetCameraPosition();
     }
-
-    /**
-     * Set up the renderer
-     */
-    setupRenderer() {
+    setupRenderer() { /* ... same as before ... */
         this.renderer = new THREE.WebGLRenderer({
             antialias: this.config.PERFORMANCE.antialiasing,
-            alpha: true // For potential transparency effects
+            alpha: true
         });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.config.PERFORMANCE.maxPixelRatio || 2));
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.container.appendChild(this.renderer.domElement);
     }
-
-    /**
-     * Set up scene lighting
-     */
-    setupLighting() {
-        const ambientConfig = this.config.SCENE.LIGHTING.ambient;
-        const pointConfig = this.config.SCENE.LIGHTING.point;
-
-        const ambientLight = new THREE.AmbientLight(ambientConfig.color, ambientConfig.intensity);
+    setupLighting() { /* ... same as before ... */
+        const ambientLight = new THREE.AmbientLight(this.config.SCENE.LIGHTING.ambient.color, this.config.SCENE.LIGHTING.ambient.intensity);
         this.scene.add(ambientLight);
-
-        const pointLight = new THREE.PointLight(pointConfig.color, pointConfig.intensity);
-        pointLight.position.set(pointConfig.position.x, pointConfig.position.y, pointConfig.position.z);
+        const pointLight = new THREE.PointLight(this.config.SCENE.LIGHTING.point.color, this.config.SCENE.LIGHTING.point.intensity);
+        pointLight.position.set(this.config.SCENE.LIGHTING.point.position.x, this.config.SCENE.LIGHTING.point.position.y, this.config.SCENE.LIGHTING.point.position.z);
         this.scene.add(pointLight);
     }
-
-    /**
-     * Set up orbit controls
-     */
-    setupControls() {
+    setupControls() { /* ... same as before ... */
         if (!window.OrbitControls) {
-            throw new Error('OrbitControls not loaded');
+            throw new Error('OrbitControls not available.');
         }
         this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
-        Object.assign(this.controls, this.config.SCENE.CONTROLS); // Apply settings from config
+        Object.assign(this.controls, this.config.SCENE.CONTROLS);
         this.controls.update();
     }
-
-    /**
-     * Set up event listeners
-     */
-    setupEventListeners() {
-        // Use ResizeObserver for more robust resize handling if available, fallback to window resize
+    setupEventListeners() { /* ... same as before ... */
         if ('ResizeObserver' in window) {
-            const resizeObserver = new ResizeObserver(() => this.handleResize());
-            resizeObserver.observe(this.container);
-             // Store observer for later disconnection in dispose()
-             this.resizeObserver = resizeObserver;
+            this.resizeObserver = new ResizeObserver(() => this.handleResize());
+            this.resizeObserver.observe(this.container);
         } else {
-            window.addEventListener('resize', this.handleResize.bind(this));
-             this.useWindowResizeListener = true; // Flag for removal in dispose()
+            this.boundResizeHandler = this.handleResize.bind(this);
+            window.addEventListener('resize', this.boundResizeHandler);
         }
     }
-
-
-    /**
-     * Handle container resize
-     */
-    handleResize() {
+    handleResize() { /* ... same as before ... */
         if (!this.container || !this.camera || !this.renderer) return;
-
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
-
-        if (width === 0 || height === 0) return; // Avoid issues when container is hidden
-
+        if (width === 0 || height === 0) return;
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height);
     }
-
-    /**
-     * Animation loop
-     */
-    animate() {
-        // Check if disposed
-        if (!this.renderer || !this.scene || !this.camera) return;
-
+    animate() { /* ... same as before ... */
+        if (!this.renderer) return;
         this.animationFrame = requestAnimationFrame(this.animate.bind(this));
-
-        if (this.controls) {
-            this.controls.update(); // Only required if enableDamping or autoRotate are set.
+        if (this.controls) this.controls.update();
+        if (this.axisSystem) this.axisSystem.update(this.camera);
+        if (this.config.PERFORMANCE.autoRotate && this.axisSystem && this.axisSystem.shapeGroup.children.length > 0) {
+             this.axisSystem.shapeGroup.rotation.y += 0.001;
         }
-
-        if (this.axisSystem) {
-            this.axisSystem.update(this.camera); // Update labels to face camera
-        }
-
-        // Optional auto-rotation (example)
-        if (this.config.PERFORMANCE.autoRotate && this.plane) { // Rotate only if plane exists?
-            this.scene.rotation.y += 0.001;
-        }
-
         this.renderer.render(this.scene, this.camera);
     }
 
-    /**
-     * Visualize Miller indices based on parameters object
-     * @param {Object} params - Calculation parameters ({h, k, l, system} or {h, k, i, l, system})
-     */
     visualize(params) {
         try {
-            window.CONFIG_UTILS.debug(`Visualizing indices for system: ${params.system}`, 'info');
-
-            // Update Axis System if needed
+            window.CONFIG_UTILS.debug(`MillerVisualizer: Visualizing for system: ${params.system}, params: (${params.h},${params.k},${params.i || ''},${params.l})`, 'info');
             if (this.axisSystem && this.axisSystem.system !== params.system) {
                 this.axisSystem.setSystem(params.system);
             }
-
-            // Clear previous visualization elements (plane, points)
             this.clearVisualizationElements();
 
-            // Calculate intercepts and plane parameters using updated calculator
-            const result = this.calculator.calculateIntercepts(params);
+            const rawResult = this.calculator.calculateIntercepts(params);
+            let visualResult = rawResult;
 
-            // Create plane mesh
-            this.createPlane(result);
+            if (params.system === 'hexagonal' && this.axisSystem.system === 'hexagonal') {
+                const tIntersects = {};
+                if (rawResult.intersections.c) tIntersects.c = new THREE.Vector3(0, rawResult.intersections.c.z, 0);
+                if (rawResult.intersections.a1) tIntersects.a1 = new THREE.Vector3(rawResult.intersections.a1.x, 0, 0);
+                if (rawResult.intersections.a2) tIntersects.a2 = new THREE.Vector3(rawResult.intersections.a2.x, 0, rawResult.intersections.a2.y);
+                if (rawResult.intersections.a3) tIntersects.a3 = new THREE.Vector3(rawResult.intersections.a3.x, 0, rawResult.intersections.a3.y);
 
-            // Create intersection point markers
-            this.createIntersectionPoints(result.intersections);
+                const tNormal = new THREE.Vector3(rawResult.normal.x, rawResult.normal.z, rawResult.normal.y).normalize();
+                const validTIntersects = Object.values(tIntersects).filter(p => p instanceof THREE.Vector3);
+                const tCenter = new THREE.Vector3();
+                if (validTIntersects.length > 0) {
+                    validTIntersects.forEach(p => tCenter.add(p));
+                    tCenter.divideScalar(validTIntersects.length);
+                } else if (rawResult.center) { // Fallback if no valid transformed intercepts for center
+                    tCenter.set(rawResult.center.x, rawResult.center.z, rawResult.center.y);
+                }
 
-            window.CONFIG_UTILS.debug('Visualization complete', 'info');
-            return true; // Indicate success
 
+                visualResult = { ...rawResult, intersections: tIntersects, normal: tNormal, center: tCenter };
+                window.CONFIG_UTILS.debug('Transformed Hexagonal Intercepts (Visual Coords):', JSON.stringify(tIntersects));
+                window.CONFIG_UTILS.debug('Transformed Hexagonal Normal (Visual Coords):', JSON.stringify(tNormal.toArray()));
+            }
+
+            this.createPlane(visualResult);
+            this.createIntersectionPoints(visualResult.intersections);
+            window.CONFIG_UTILS.debug('MillerVisualizer: Visualization complete.', 'info');
+            return true;
         } catch (error) {
-            console.error('Visualization error:', error);
-            window.CONFIG_UTILS.debug('Visualization error: ' + error.message, 'error');
-            this.clearVisualizationElements(); // Clear potentially partially drawn elements on error
-            return false; // Indicate failure
+            console.error('MillerVisualizer: Visualization error:', error);
+            window.CONFIG_UTILS.debug('MillerVisualizer: Visualization error - ' + error.message, 'error');
+            this.clearVisualizationElements();
+            return false;
         }
     }
 
-    /**
-     * Create lattice plane mesh
-     */
     createPlane(result) {
-        if (!result || !result.center || !result.normal || !result.size) {
-             window.CONFIG_UTILS.debug('Cannot create plane: Invalid calculation result.', 'error');
+        if (!result || !result.normal) {
+             window.CONFIG_UTILS.debug('MillerVisualizer: Cannot create plane - invalid calculation result.', 'error');
              return;
         }
+
         const planeConfig = this.config.PLANE;
-        const geometry = new THREE.PlaneGeometry(result.size, result.size);
-        const material = new THREE.MeshPhongMaterial({
-            color: planeConfig.COLOR,
-            opacity: planeConfig.OPACITY,
-            transparent: planeConfig.STYLES.transparent !== false, // Default true if not specified
-            side: THREE.DoubleSide, // Make sure both sides are visible
-            shininess: planeConfig.STYLES.shininess || 30,
-             // wireframe: planeConfig.STYLES.wireframe || false // Optional wireframe
-        });
+        const axisLength = this.config.AXIS.LENGTH;
+        const hexShapeConfig = this.config.DEFAULT_SHAPE.HEXAGONAL;
+        const hexRadius = axisLength * (hexShapeConfig.radiusFactor || 1.0);
+        const hexHeight = axisLength * (hexShapeConfig.heightFactor || 1.0);
+        const halfHexHeight = hexHeight / 2;
 
-        this.plane = new THREE.Mesh(geometry, material);
+        let geometry;
+        const params = result.parameters; // h, k, l, (i), system
+        // Use result.intersections which are already in VISUAL coordinates for hexagonal
+        const visualIntersects = result.intersections;
 
-        // Position and orient plane
-        // PlaneGeometry is in XY plane by default. We need to align its normal (0,0,1) with the calculated normal.
-        this.plane.position.copy(result.center);
-
-         // Align plane normal (initially +Z) to calculated normal vector
-         const targetNormal = result.normal.clone().normalize();
-         const up = (Math.abs(targetNormal.z) < 0.999) ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0); // Avoid issues if normal is close to Z
-         this.plane.lookAt(result.center.clone().add(targetNormal));
+        window.CONFIG_UTILS.debug(`Creating plane for system: ${params.system}, indices: (${params.h},${params.k},${params.i || ''},${params.l})`, 'info');
+        window.CONFIG_UTILS.debug('Visual Intercepts for plane creation:', JSON.stringify(visualIntersects));
 
 
-        this.scene.add(this.plane);
-    }
-
-    /**
-     * Create intersection points visualization markers
-     * @param {Object} intersections - Dictionary of intersection points (e.g., {x: V3, y: V3, ...} or {a1: V3, ...})
-     */
-    createIntersectionPoints(intersections) {
-        if (!intersections) return;
-
-        const pointConfig = this.config.HELPERS.INTERSECTION_POINT;
-        const geometry = new THREE.SphereGeometry(pointConfig.SIZE, pointConfig.SEGMENTS, pointConfig.SEGMENTS);
-        const material = new THREE.MeshBasicMaterial({ color: pointConfig.COLOR });
-
-        // Iterate through the calculated intersection points
-        Object.values(intersections).forEach(point => {
-            // Check if the value is a valid THREE.Vector3
-            if (point instanceof THREE.Vector3) {
-                const sphere = new THREE.Mesh(geometry.clone(), material.clone()); // Use clones for multiple points
-                sphere.position.copy(point);
-                this.scene.add(sphere);
-                this.intersectionPointMeshes.push(sphere); // Store reference for clearing
+        if (params.system === 'cubic') {
+            const validCubicIntersects = Object.values(visualIntersects).filter(p => p instanceof THREE.Vector3);
+            if (validCubicIntersects.length === 3) {
+                geometry = new THREE.BufferGeometry();
+                const vertices = new Float32Array(validCubicIntersects.flatMap(v => v.toArray()));
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                geometry.setIndex([0, 1, 2]);
+            } else if (validCubicIntersects.length === 1 && (params.h === 0 || params.k === 0 || params.l === 0)) {
+                geometry = new THREE.PlaneGeometry(axisLength, axisLength);
+                this.planeMesh = new THREE.Mesh(geometry, null);
+                this.planeMesh.position.copy(validCubicIntersects[0]);
+                this.planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), result.normal.clone().normalize());
+            } else {
+                geometry = new THREE.PlaneGeometry(result.size || planeConfig.DEFAULT_SIZE, result.size || planeConfig.DEFAULT_SIZE);
+                this.planeMesh = new THREE.Mesh(geometry, null);
+                this.planeMesh.position.copy(result.center);
+                this.planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), result.normal.clone().normalize());
             }
-        });
-         // Dispose of the template geometry/material after loop if cloned
-         // geometry.dispose();
-         // material.dispose();
-         // Note: THREE.js might handle template disposal implicitly, but explicit is safer if memory is critical.
-         // For simplicity here, we don't dispose the template used in the loop.
-    }
+        } else if (params.system === 'hexagonal') {
+            const cPoint = visualIntersects.c;
+            const a1Point = visualIntersects.a1;
+            const a2Point = visualIntersects.a2;
+            const a3Point = visualIntersects.a3;
+            const finiteAIntersects = [a1Point, a2Point, a3Point].filter(p => p instanceof THREE.Vector3);
+
+            if (params.h === 0 && params.k === 0 && params.i === 0 && params.l !== 0 && cPoint) { // Basal (000l)
+                window.CONFIG_UTILS.debug('Hex Plane: Basal (000l)', 'info');
+                const shape = new THREE.Shape();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i;
+                    const x = hexRadius * Math.cos(angle);
+                    const z = hexRadius * Math.sin(angle);
+                    if (i === 0) shape.moveTo(x, z); else shape.lineTo(x, z);
+                }
+                shape.closePath();
+                geometry = new THREE.ShapeGeometry(shape);
+                this.planeMesh = new THREE.Mesh(geometry, null);
+                this.planeMesh.position.set(0, cPoint.y, 0); // Positioned at c-intercept height
+                this.planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), result.normal.clone().normalize());
+
+            } else if (params.l === 0 && finiteAIntersects.length >= 2) { // Prism face (hki0)
+                window.CONFIG_UTILS.debug('Hex Plane: Prism (hki0)', 'info');
+                // Select two distinct finite 'a' intercepts. This needs to be robust.
+                // For (10-10), a1 and a3 are finite. For (11-20), a1 and a2 are finite.
+                let p1 = null, p2 = null;
+                if (params.h !== 0 && params.i !== 0 && a1Point && a3Point) { p1 = a1Point; p2 = a3Point; } // e.g. (10-10)
+                else if (params.h !== 0 && params.k !== 0 && a1Point && a2Point) { p1 = a1Point; p2 = a2Point; } // e.g. (11-20)
+                else if (params.k !== 0 && params.i !== 0 && a2Point && a3Point) { p1 = a2Point; p2 = a3Point; } // e.g. (01-10)
+                else { // Fallback if specific pairs not found, just take first two available
+                    if(finiteAIntersects.length >= 2) {p1 = finiteAIntersects[0]; p2 = finiteAIntersects[1];}
+                }
+
+                if (p1 && p2 && !p1.equals(p2)) {
+                    geometry = new THREE.BufferGeometry();
+                    const rectVertices = new Float32Array([
+                        p1.x,  halfHexHeight, p1.z, p1.x, -halfHexHeight, p1.z,
+                        p2.x,  halfHexHeight, p2.z, p2.x, -halfHexHeight, p2.z
+                    ]);
+                    geometry.setAttribute('position', new THREE.BufferAttribute(rectVertices, 3));
+                    geometry.setIndex([0, 1, 2, 1, 3, 2]); // Ensure correct winding for a vertical plane
+                } else {
+                    window.CONFIG_UTILS.debug('Hex Prism: Not enough distinct finite a-intercepts, fallback.', 'warn');
+                    geometry = new THREE.PlaneGeometry(result.size || planeConfig.DEFAULT_SIZE, result.size || planeConfig.DEFAULT_SIZE);
+                    this.planeMesh = new THREE.Mesh(geometry, null);
+                }
+
+            } else if (params.l !== 0 && cPoint && finiteAIntersects.length >= 2) { // Pyramidal/General (hkil)
+                 window.CONFIG_UTILS.debug('Hex Plane: Pyramidal/General (hkil)', 'info');
+                 // Form a triangle with cPoint and two distinct finite a-intercepts.
+                 let p_a_1 = null, p_a_2 = null;
+                 if (params.h !== 0 && a1Point) p_a_1 = a1Point;
+                 if (params.k !== 0 && a2Point) {
+                    if (!p_a_1) p_a_1 = a2Point; else if (!a2Point.equals(p_a_1)) p_a_2 = a2Point;
+                 }
+                 if (params.i !== 0 && a3Point) {
+                    if (!p_a_1) p_a_1 = a3Point; else if (!p_a_2 && !a3Point.equals(p_a_1)) p_a_2 = a3Point;
+                 }
+                 // If still don't have two, try from the list
+                 if (!p_a_1 && finiteAIntersects.length > 0) p_a_1 = finiteAIntersects[0];
+                 if (!p_a_2 && finiteAIntersects.length > 1 && !finiteAIntersects[1].equals(p_a_1)) p_a_2 = finiteAIntersects[1];
 
 
-    /**
-     * Clear current plane and intersection points visualization elements
-     */
-    clearVisualizationElements() {
-        // Remove and dispose plane
-        if (this.plane) {
-            this.scene.remove(this.plane);
-            if (this.plane.geometry) this.plane.geometry.dispose();
-            if (this.plane.material) this.plane.material.dispose();
-            this.plane = null;
+                if (p_a_1 && p_a_2) {
+                    window.CONFIG_UTILS.debug('Hex Pyramidal Vertices:', {v0:cPoint.toArray(), v1:p_a_1.toArray(), v2:p_a_2.toArray()});
+                    geometry = new THREE.BufferGeometry();
+                    const triVertices = new Float32Array([
+                        cPoint.x, cPoint.y, cPoint.z,
+                        p_a_1.x, p_a_1.y, p_a_1.z,
+                        p_a_2.x, p_a_2.y, p_a_2.z,
+                    ]);
+                    geometry.setAttribute('position', new THREE.BufferAttribute(triVertices, 3));
+                    geometry.setIndex([0, 1, 2]);
+                } else {
+                     window.CONFIG_UTILS.debug('Hex Pyramidal: Not enough distinct a-intercepts for triangle, fallback.', 'warn');
+                     geometry = new THREE.PlaneGeometry(result.size || planeConfig.DEFAULT_SIZE, result.size || planeConfig.DEFAULT_SIZE);
+                     this.planeMesh = new THREE.Mesh(geometry, null);
+                }
+            } else { // Fallback
+                window.CONFIG_UTILS.debug('Hex Plane: Fallback', 'info');
+                geometry = new THREE.PlaneGeometry(result.size || planeConfig.DEFAULT_SIZE, result.size || planeConfig.DEFAULT_SIZE);
+                this.planeMesh = new THREE.Mesh(geometry, null);
+            }
+
+            if (this.planeMesh && (geometry instanceof THREE.PlaneGeometry || (geometry instanceof THREE.ShapeGeometry && !(params.h === 0 && params.k === 0 && params.i === 0 && params.l !== 0)))) {
+                this.planeMesh.position.copy(result.center);
+                this.planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), result.normal.clone().normalize());
+            }
+        } else {
+            geometry = new THREE.PlaneGeometry(planeConfig.DEFAULT_SIZE, planeConfig.DEFAULT_SIZE);
+            this.planeMesh = new THREE.Mesh(geometry, null);
         }
 
-        // Remove and dispose intersection points
-        this.intersectionPointMeshes.forEach(pointMesh => {
-            this.scene.remove(pointMesh);
-            if (pointMesh.geometry) pointMesh.geometry.dispose();
-            if (pointMesh.material) pointMesh.material.dispose();
+        if (geometry && !geometry.attributes.normal && !(geometry instanceof THREE.PlaneGeometry)) { // PlaneGeometry has normals
+            geometry.computeVertexNormals();
+        }
+
+        const material = new THREE.MeshPhongMaterial({
+            color: planeConfig.COLOR, opacity: planeConfig.OPACITY,
+            transparent: planeConfig.OPACITY < 1.0, side: THREE.DoubleSide,
+            shininess: planeConfig.STYLES.shininess || 30, wireframe: planeConfig.STYLES.wireframe || false
         });
-        this.intersectionPointMeshes = []; // Clear the array
+
+        if (!this.planeMesh) { this.planeMesh = new THREE.Mesh(geometry, material); }
+        else {
+            if(this.planeMesh.geometry && this.planeMesh.geometry !== geometry) this.planeMesh.geometry.dispose();
+            this.planeMesh.geometry = geometry;
+            this.planeMesh.material = material;
+        }
+        this.scene.add(this.planeMesh);
     }
 
-    /**
-     * Reset camera position and controls to default
-     */
-    resetCameraPosition() {
+    createIntersectionPoints(intersections) { /* ... same as before ... */
+        if (!intersections) return;
+        const pointConfig = this.config.HELPERS.INTERSECTION_POINT;
+        const sphereGeometry = new THREE.SphereGeometry(pointConfig.SIZE, pointConfig.SEGMENTS, pointConfig.SEGMENTS);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ color: pointConfig.COLOR });
+
+        Object.values(intersections).forEach(point => {
+            if (point instanceof THREE.Vector3) {
+                const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial); // Re-use geo & mat
+                sphereMesh.position.copy(point);
+                this.scene.add(sphereMesh);
+                this.intersectionPointMeshes.push(sphereMesh);
+            }
+        });
+    }
+    clearVisualizationElements() { /* ... same as before ... */
+        if (this.planeMesh) {
+            this.scene.remove(this.planeMesh);
+            if (this.planeMesh.geometry) this.planeMesh.geometry.dispose();
+            if (this.planeMesh.material) {
+                const materials = Array.isArray(this.planeMesh.material) ? this.planeMesh.material : [this.planeMesh.material];
+                materials.forEach(m => m.dispose());
+            }
+            this.planeMesh = null;
+        }
+        this.intersectionPointMeshes.forEach(mesh => {
+            this.scene.remove(mesh);
+        });
+        this.intersectionPointMeshes = [];
+    }
+    resetCameraPosition() { /* ... same as before ... */
          const pos = this.config.SCENE.CAMERA_POSITION;
          this.camera.position.set(pos.x, pos.y, pos.z);
          this.camera.lookAt(0, 0, 0);
          if (this.controls) {
-             this.controls.target.set(0, 0, 0); // Reset look-at target
-             this.controls.update(); // Apply changes
-             // controls.reset() might be too aggressive if called frequently
+             this.controls.target.set(0, 0, 0);
+             this.controls.update();
          }
     }
+    dispose() { /* ... same as before ... */
+        window.CONFIG_UTILS.debug('MillerVisualizer: Disposing...', 'info');
+        if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+        if (this.resizeObserver) this.resizeObserver.disconnect();
+        else if (this.boundResizeHandler) window.removeEventListener('resize', this.boundResizeHandler);
 
-
-    /**
-     * Clean up all resources used by the visualizer
-     */
-    dispose() {
-        window.CONFIG_UTILS.debug('Disposing visualizer...', 'info');
-        // Stop animation loop
-        if (this.animationFrame) {
-            cancelAnimationFrame(this.animationFrame);
-            this.animationFrame = null;
-        }
-
-        // Remove event listeners
-         if (this.resizeObserver) {
-             this.resizeObserver.disconnect();
-         } else if (this.useWindowResizeListener) {
-             window.removeEventListener('resize', this.handleResize.bind(this)); // Might need stored bound function
-         }
-
-
-        // Dispose of axis system
-        if (this.axisSystem) {
-            this.axisSystem.dispose();
-            this.axisSystem = null;
-        }
-
-        // Clear plane and intersection points
+        if (this.axisSystem) this.axisSystem.dispose();
         this.clearVisualizationElements();
 
-         // Dispose of calculator? If it holds significant state/cache maybe, but likely not needed.
-         // if (this.calculator.dispose) this.calculator.dispose();
-
-
-        // Dispose of controls
-         if (this.controls) {
-             this.controls.dispose();
-             this.controls = null;
-         }
-
-
-        // Dispose of renderer and remove from DOM
+        if (this.controls) this.controls.dispose();
         if (this.renderer) {
             this.renderer.dispose();
-            if (this.container && this.renderer.domElement && this.container.contains(this.renderer.domElement)) {
-                this.container.removeChild(this.renderer.domElement);
-            }
-            this.renderer = null;
+            if (this.container && this.renderer.domElement) this.container.removeChild(this.renderer.domElement);
         }
-
-        // Dispose of scene resources (lights, etc. - THREE.js might handle children disposal)
-        // Explicitly remove lights?
-        if (this.scene) {
-             // Traverse and dispose materials/geometries if needed, though clearVis/axisSystem handle most custom objects
-            this.scene = null;
-        }
-
-
-        this.camera = null;
-        this.container = null;
-        this.config = null; // Release config reference
+        this.scene = null; this.camera = null; this.renderer = null; this.controls = null;
+        this.axisSystem = null; this.config = null;
+        window.CONFIG_UTILS.debug('MillerVisualizer: Disposed successfully.', 'info');
     }
 }
-
-// Make available globally
 window.MillerVisualizer = MillerVisualizer;
